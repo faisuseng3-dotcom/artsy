@@ -1,0 +1,554 @@
+// Artsy — creator marketplace
+// Schema deliberately keeps the MVP entities lean; sections not needed for
+// V1 (drops, disputes-as-first-class, collector tools) are noted inline
+// rather than modeled, so the schema doesn't carry weight it doesn't use yet.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  BUYER
+  CREATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String?
+  name         String
+  avatarUrl    String?
+  role         UserRole   @default(BUYER)
+  status       UserStatus @default(ACTIVE)
+  city         String?
+  country      String?
+  interests    String[]   @default([]) // category slugs picked at onboarding
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  creator          Creator?
+  addresses        Address[]
+  favorites        Favorite[]
+  savedCollections SavedCollection[]
+  follows          Follow[]
+  orders           Order[]           @relation("BuyerOrders")
+  reviewsWritten   Review[]          @relation("ReviewAuthor")
+  messagesSent     Message[]         @relation("MessageSender")
+  notifications    Notification[]
+  reportsFiled     Report[]          @relation("ReporterUser")
+  events           Event[]
+
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum CreatorStatus {
+  PENDING // applied, awaiting approval
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model Creator {
+  id             String        @id @default(cuid())
+  userId         String        @unique
+  user           User          @relation(fields: [userId], references: [id])
+  slug           String        @unique
+  displayName    String
+  bio            String?       @db.Text
+  story          String?       @db.Text // longer "creator story" shown on profile
+  studioCity     String?
+  studioCountry  String?
+  categories     String[]      @default([]) // category slugs the creator works in
+  status         CreatorStatus @default(PENDING)
+  verified       Boolean       @default(false)
+  responseRateBp Int? // basis points, e.g. 9800 = 98%
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  products        Product[]
+  studioImages    StudioImage[]
+  followers       Follow[]
+  reviews         Review[]
+  stats           CreatorStats?
+  payoutAccountId String? // Stripe Connect account id
+  orders          Order[]       @relation("CreatorOrders")
+
+  @@index([status])
+  @@index([slug])
+}
+
+model StudioImage {
+  id        String   @id @default(cuid())
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  url       String
+  caption   String?
+  createdAt DateTime @default(now())
+
+  @@index([creatorId])
+}
+
+model CreatorStats {
+  creatorId      String   @id
+  creator        Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  followerCount  Int      @default(0)
+  salesCount     Int      @default(0)
+  activeListings Int      @default(0)
+  avgRatingBp    Int      @default(0) // basis points of 5.0, e.g. 480 = 4.80
+  ratingCount    Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  label      String?
+  line1      String
+  line2      String?
+  city       String
+  region     String?
+  postalCode String
+  country    String
+  phone      String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  ordersShippedTo Order[]
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+model Category {
+  id       String     @id @default(cuid())
+  slug     String     @unique
+  name     String
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@index([parentId])
+}
+
+enum Originality {
+  ORIGINAL_ONE_OF_ONE
+  LIMITED_EDITION
+  OPEN_EDITION_PRINT
+  HANDMADE_REPRODUCIBLE
+  AI_ASSISTED
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  RESERVED
+  SOLD
+  REMOVED
+}
+
+enum ShippingMethod {
+  PICKUP_ONLY
+  LOCAL_DELIVERY
+  STANDARD_SHIPPING
+  LARGE_ITEM_SHIPPING
+}
+
+model Product {
+  id                 String           @id @default(cuid())
+  creatorId          String
+  creator            Creator          @relation(fields: [creatorId], references: [id])
+  categoryId         String
+  category           Category         @relation(fields: [categoryId], references: [id])
+  title              String
+  description        String           @db.Text
+  materials          String?
+  tags               String[]         @default([])
+  originality        Originality      @default(ORIGINAL_ONE_OF_ONE)
+  editionSize        Int? // null unless LIMITED_EDITION
+  editionNumber      Int?
+  priceCents         Int
+  currency           String           @default("EUR")
+  quantityAvailable  Int              @default(1)
+  quantitySold       Int              @default(0)
+  widthCm            Float?
+  heightCm           Float?
+  depthCm            Float?
+  weightGrams        Int?
+  condition          String? // "new", "excellent", "good", with notes
+  conditionNotes     String?
+  createdAtStudio    DateTime? // when the piece was actually made
+  shippingMethods    ShippingMethod[] @default([PICKUP_ONLY])
+  shippingCountries  String[]         @default([])
+  shippingPriceCents Int?
+  status             ProductStatus    @default(DRAFT)
+  publishedAt        DateTime?
+  aiAssisted         Boolean          @default(false) // listing text drafted by AI assistant
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  deletedAt          DateTime?
+
+  images     ProductImage[]
+  favorites  Favorite[]
+  orderItems OrderItem[]
+  reviews    Review[]
+  reports    Report[]
+  stats      ProductStats?
+  savedIn    SavedCollectionItem[]
+
+  @@index([creatorId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([priceCents])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  kind      String   @default("gallery") // hero | detail | scale | process | gallery
+  position  Int      @default(0)
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model ProductStats {
+  productId  String   @id
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  viewCount  Int      @default(0)
+  saveCount  Int      @default(0)
+  shareCount Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Engagement: favorites, follows, collections
+// ---------------------------------------------------------------------------
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+model Follow {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, creatorId])
+  @@index([creatorId])
+}
+
+model SavedCollection {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  items SavedCollectionItem[]
+
+  @@index([userId])
+}
+
+model SavedCollectionItem {
+  id           String          @id @default(cuid())
+  collectionId String
+  collection   SavedCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product         @relation(fields: [productId], references: [id])
+  createdAt    DateTime        @default(now())
+
+  @@unique([collectionId, productId])
+}
+
+// ---------------------------------------------------------------------------
+// Commerce
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model Order {
+  id                      String      @id @default(cuid())
+  buyerId                 String
+  buyer                   User        @relation("BuyerOrders", fields: [buyerId], references: [id])
+  creatorId               String
+  creator                 Creator     @relation("CreatorOrders", fields: [creatorId], references: [id])
+  shippingAddressId       String?
+  shippingAddress         Address?    @relation(fields: [shippingAddressId], references: [id])
+  status                  OrderStatus @default(PENDING_PAYMENT)
+  subtotalCents           Int
+  shippingCents           Int         @default(0)
+  platformFeeCents        Int // take rate captured at time of sale
+  totalCents              Int
+  currency                String      @default("EUR")
+  stripePaymentIntentId   String?
+  stripeCheckoutSessionId String?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  items   OrderItem[]
+  payment Payment?
+  payout  Payout?
+  review  Review?
+
+  @@index([buyerId])
+  @@index([creatorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product @relation(fields: [productId], references: [id])
+  quantity       Int     @default(1)
+  unitPriceCents Int
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+enum PaymentStatus {
+  REQUIRES_PAYMENT
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  orderId        String        @unique
+  order          Order         @relation(fields: [orderId], references: [id])
+  status         PaymentStatus @default(REQUIRES_PAYMENT)
+  amountCents    Int
+  currency       String        @default("EUR")
+  stripeChargeId String?
+  refundedCents  Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+enum PayoutStatus {
+  PENDING
+  IN_TRANSIT
+  PAID
+  FAILED
+}
+
+model Payout {
+  id               String       @id @default(cuid())
+  orderId          String       @unique
+  order            Order        @relation(fields: [orderId], references: [id])
+  creatorId        String
+  amountCents      Int
+  status           PayoutStatus @default(PENDING)
+  stripeTransferId String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([creatorId])
+}
+
+// ---------------------------------------------------------------------------
+// Trust: reviews, messages, reports, moderation
+// ---------------------------------------------------------------------------
+
+model Review {
+  id                 String   @id @default(cuid())
+  orderId            String?  @unique // present => verified purchase
+  order              Order?   @relation(fields: [orderId], references: [id])
+  authorId           String
+  author             User     @relation("ReviewAuthor", fields: [authorId], references: [id])
+  creatorId          String
+  creator            Creator  @relation(fields: [creatorId], references: [id])
+  productId          String?
+  product            Product? @relation(fields: [productId], references: [id])
+  ratingBp           Int // 100-500, basis points of a 5-star scale (e.g. 500 = 5.0)
+  body               String?  @db.Text
+  isVerifiedPurchase Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  @@index([creatorId])
+  @@index([productId])
+}
+
+enum MessageFlag {
+  NONE
+  SUSPECTED_OFF_PLATFORM_PAYMENT
+  SUSPECTED_SPAM
+  SUSPECTED_PHISHING
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  buyerId   String
+  creatorId String
+  productId String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+
+  @@unique([buyerId, creatorId, productId])
+  @@index([creatorId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id])
+  body           String       @db.Text
+  flag           MessageFlag  @default(NONE)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+enum ReportReason {
+  COUNTERFEIT
+  SCAM
+  INAPPROPRIATE_CONTENT
+  STOLEN_ARTWORK
+  MISLEADING_DESCRIPTION
+  PROHIBITED_ITEM
+  HARASSMENT
+  COPYRIGHT_VIOLATION
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  ACTIONED
+  DISMISSED
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  reporter       User         @relation("ReporterUser", fields: [reporterId], references: [id])
+  productId      String?
+  product        Product?     @relation(fields: [productId], references: [id])
+  reason         ReportReason
+  details        String?      @db.Text
+  status         ReportStatus @default(OPEN)
+  resolutionNote String?      @db.Text
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+
+  @@index([status])
+  @@index([productId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String? // admin/user id, null for system
+  action     String // e.g. "product.removed", "creator.approved"
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications & analytics
+// ---------------------------------------------------------------------------
+
+enum NotificationType {
+  NEW_WORK_FROM_FOLLOWED_CREATOR
+  PRODUCT_SOLD
+  PRODUCT_SAVED
+  MESSAGE_RECEIVED
+  ORDER_UPDATE
+  SHIPPING_UPDATE
+  PAYMENT_UPDATE
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  body      String?
+  linkUrl   String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+}
+
+// Append-only product analytics event stream — the input to the discovery
+// scoring model described in the README. Kept generic (type + payload)
+// rather than one table per event so new event types don't need migrations.
+model Event {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  sessionId  String?
+  type       String // e.g. "product_viewed", "search_performed"
+  productId  String?
+  creatorId  String?
+  categoryId String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([userId])
+  @@index([productId])
+}

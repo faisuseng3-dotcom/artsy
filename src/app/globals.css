@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --color-paper: #faf7f2;
+  --color-paper-raised: #ffffff;
+  --color-ink: #1c1712;
+  --color-ink-muted: #6b6258;
+  --color-ink-faint: #a39a8d;
+  --color-line: #e8e1d6;
+  --color-accent: #b5502f;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #f2e3da;
+  --color-success: #4d7358;
+  --color-danger: #b3413a;
+  --color-focus: #b5502f;
+}
+
+@theme inline {
+  --color-paper: var(--color-paper);
+  --color-paper-raised: var(--color-paper-raised);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-faint: var(--color-ink-faint);
+  --color-line: var(--color-line);
+  --color-accent: var(--color-accent);
+  --color-accent-ink: var(--color-accent-ink);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-success: var(--color-success);
+  --color-danger: var(--color-danger);
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
