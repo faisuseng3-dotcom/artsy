@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
+import { getApiUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 const bodySchema = z.object({
@@ -20,14 +20,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const user = await getApiUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
   await prisma.report.create({
-    data: { reporterId: session.user.id, productId: parsed.data.productId, reason: parsed.data.reason, details: parsed.data.details },
+    data: { reporterId: user.id, productId: parsed.data.productId, reason: parsed.data.reason, details: parsed.data.details },
   });
 
   return NextResponse.json({ ok: true });

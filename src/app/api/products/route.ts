@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
+import { getApiUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 const bodySchema = z.object({
@@ -30,12 +30,12 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "CREATOR") {
+  const user = await getApiUser(req);
+  if (!user || user.role !== "CREATOR") {
     return NextResponse.json({ error: "Only creators can publish listings" }, { status: 403 });
   }
 
-  const creator = await prisma.creator.findUnique({ where: { userId: session.user.id } });
+  const creator = await prisma.creator.findUnique({ where: { userId: user.id } });
   if (!creator || creator.status !== "APPROVED") {
     return NextResponse.json({ error: "Your creator account isn't approved yet" }, { status: 403 });
   }

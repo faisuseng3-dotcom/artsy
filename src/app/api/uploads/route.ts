@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getApiUser } from "@/lib/api-auth";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -8,8 +8,8 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/a
 const MAX_BYTES = 8 * 1024 * 1024;
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const user = await getApiUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
   const form = await req.formData();
   const file = form.get("file");

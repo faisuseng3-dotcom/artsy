@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
+import { getApiUser } from "@/lib/api-auth";
 import { draftListing } from "@/lib/ai";
 
 const bodySchema = z.object({
@@ -9,8 +9,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const user = await getApiUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Tell us a bit about the piece first." }, { status: 400 });
