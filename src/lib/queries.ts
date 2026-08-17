@@ -36,6 +36,24 @@ export async function getProduct(id: string) {
   });
 }
 
+export async function getRelatedProducts(product: { id: string; categoryId: string; creatorId: string }, limit = 8) {
+  const products = await prisma.product.findMany({
+    where: { status: "ACTIVE", categoryId: product.categoryId, id: { not: product.id }, creatorId: { not: product.creatorId } },
+    include: productInclude,
+    take: 40,
+  });
+  return rankProducts(products).slice(0, limit);
+}
+
+export async function getMoreFromCreator(product: { id: string; creatorId: string }, limit = 8) {
+  return prisma.product.findMany({
+    where: { status: "ACTIVE", creatorId: product.creatorId, id: { not: product.id } },
+    include: productInclude,
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+}
+
 export async function getCreatorBySlug(slug: string) {
   return prisma.creator.findUnique({
     where: { slug },
@@ -49,6 +67,12 @@ export async function getCreatorBySlug(slug: string) {
       },
     },
   });
+}
+
+export async function getSavedProductIds(userId: string | undefined) {
+  if (!userId) return new Set<string>();
+  const favorites = await prisma.favorite.findMany({ where: { userId }, select: { productId: true } });
+  return new Set(favorites.map((f) => f.productId));
 }
 
 export async function getCategories() {

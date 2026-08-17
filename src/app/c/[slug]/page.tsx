@@ -1,4 +1,5 @@
-import { getCategories, getProductsByCategory } from "@/lib/queries";
+import { getCategories, getProductsByCategory, getSavedProductIds } from "@/lib/queries";
+import { auth } from "@/lib/auth";
 import { CategoryRail } from "@/components/category-rail";
 import { ProductGrid } from "@/components/product/product-grid";
 import { notFound } from "next/navigation";
@@ -11,7 +12,12 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   const category = await prisma.category.findUnique({ where: { slug } });
   if (!category) notFound();
 
-  const [categories, products] = await Promise.all([getCategories(), getProductsByCategory(slug, 60)]);
+  const session = await auth();
+  const [categories, products, savedIds] = await Promise.all([
+    getCategories(),
+    getProductsByCategory(slug, 60),
+    getSavedProductIds(session?.user?.id),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
@@ -20,7 +26,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
       </div>
       <h1 className="mb-1 font-display text-3xl text-ink">{category.name}</h1>
       <p className="mb-6 text-sm text-ink-muted">{products.length} pieces available</p>
-      <ProductGrid products={products} />
+      <ProductGrid products={products} savedIds={savedIds} isSignedIn={!!session?.user} />
     </div>
   );
 }

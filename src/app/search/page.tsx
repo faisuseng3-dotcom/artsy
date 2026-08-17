@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { rankProducts } from "@/lib/discovery";
 import { ProductGrid } from "@/components/product/product-grid";
-import { getCategories } from "@/lib/queries";
+import { getCategories, getSavedProductIds } from "@/lib/queries";
+import { auth } from "@/lib/auth";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -13,16 +14,36 @@ const productInclude = {
   stats: true,
 } as const;
 
+const EXAMPLE_SEARCHES = [
+  "Handmade ceramics",
+  "Art under €300",
+  "Sculptures",
+  "Scandinavian furniture",
+  "Unique gifts",
+  "Abstract paintings",
+];
+
 export default async function SearchPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; category?: string; oneOfOne?: string; maxPrice?: string }>;
 }) {
   const params = await searchParams;
-  const q = params.q?.trim() ?? "";
-  const categories = await getCategories();
+  const rawQ = params.q?.trim() ?? "";
+  const session = await auth();
+  const [categories, savedIds] = await Promise.all([getCategories(), getSavedProductIds(session?.user?.id)]);
 
-  const products = q || params.category || params.oneOfOne || params.maxPrice
+  // Lightweight natural-language parsing: pull a price ceiling out of phrases
+  // like "under €300" so example searches ("Art under €300") actually filter
+  // by price instead of literally text-matching the word "under".
+  const priceMatch = rawQ.match(/under\s*€?\s*(\d+)/i);
+  const parsedMaxPrice = priceMatch ? Number(priceMatch[1]) : undefined;
+  const q = rawQ.replace(/\s*under\s*€?\s*\d+/i, "").trim();
+  const maxPriceFilter = params.maxPrice ? Number(params.maxPrice) : parsedMaxPrice;
+
+  const hasQuery = !!(rawQ || params.category || params.oneOfOne || maxPriceFilter);
+
+  const products = hasQuery
     ? rankProducts(
         await prisma.product.findMany({
           where: {
@@ -41,7 +62,7 @@ export default async function SearchPage({
               : {}),
             ...(params.category ? { category: { slug: params.category } } : {}),
             ...(params.oneOfOne ? { originality: "ORIGINAL_ONE_OF_ONE" } : {}),
-            ...(params.maxPrice ? { priceCents: { lte: Number(params.maxPrice) * 100 } } : {}),
+            ...(maxPriceFilter ? { priceCents: { lte: maxPriceFilter * 100 } } : {}),
           },
           include: productInclude,
           take: 100,
@@ -55,8 +76,8 @@ export default async function SearchPage({
         <input
           type="text"
           name="q"
-          defaultValue={q}
-          placeholder="Try “wooden chair”, “blue painting”, or a creator's city…"
+          defaultValue={rawQ}
+          placeholder="Find something unexpected…"
           className="h-12 w-full rounded-full border border-ink/15 bg-paper-raised px-5 text-base focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
           autoFocus
         />
@@ -80,15 +101,26 @@ export default async function SearchPage({
         ))}
       </div>
 
-      {q || params.category || params.oneOfOne || params.maxPrice ? (
+      {hasQuery ? (
         <>
           <p className="mb-4 text-sm text-ink-muted">{products.length} results</p>
-          <ProductGrid products={products} />
+          <ProductGrid products={products} savedIds={savedIds} isSignedIn={!!session?.user} />
         </>
       ) : (
-        <p className="py-16 text-center text-sm text-ink-muted">
-          Search for a material, a color, a city, or a creator&apos;s name.
-        </p>
+        <div className="py-12 text-center">
+          <p className="mb-4 text-sm text-ink-muted">Try searching</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {EXAMPLE_SEARCHES.map((s) => (
+              <Link
+                key={s}
+                href={`/search?q=${encodeURIComponent(s)}`}
+                className="rounded-full border border-ink/15 px-4 py-2 text-sm text-ink-muted hover:border-ink/30 hover:text-ink"
+              >
+                {s}
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

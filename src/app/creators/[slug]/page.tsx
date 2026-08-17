@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { getCreatorBySlug } from "@/lib/queries";
+import { getCreatorBySlug, getSavedProductIds } from "@/lib/queries";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { FollowButton } from "@/components/creator/follow-button";
@@ -16,9 +16,12 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
   if (!creator || creator.status !== "APPROVED") notFound();
 
   const session = await auth();
-  const isFollowing = session?.user
-    ? await prisma.follow.findUnique({ where: { userId_creatorId: { userId: session.user.id, creatorId: creator.id } } })
-    : null;
+  const [isFollowing, savedIds] = await Promise.all([
+    session?.user
+      ? prisma.follow.findUnique({ where: { userId_creatorId: { userId: session.user.id, creatorId: creator.id } } })
+      : null,
+    getSavedProductIds(session?.user?.id),
+  ]);
 
   const active = creator.products.filter((p) => p.status === "ACTIVE");
   const sold = creator.products.filter((p) => p.status === "SOLD");
@@ -84,13 +87,13 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
 
         <div className="mb-10">
           <h2 className="mb-3 font-display text-xl text-ink">Works ({active.length})</h2>
-          <ProductGrid products={active} />
+          <ProductGrid products={active} savedIds={savedIds} isSignedIn={!!session?.user} />
         </div>
 
         {sold.length > 0 && (
           <div>
             <h2 className="mb-3 font-display text-xl text-ink">Sold</h2>
-            <ProductGrid products={sold} />
+            <ProductGrid products={sold} savedIds={savedIds} isSignedIn={!!session?.user} />
           </div>
         )}
       </div>

@@ -2,7 +2,15 @@ import { ProductCard, type ProductCardData } from "@/components/product/product-
 import { EmptyState } from "@/components/ui/empty-state";
 import { Compass } from "lucide-react";
 
-export function ProductGrid({ products }: { products: ProductCardData[] }) {
+export function ProductGrid({
+  products,
+  savedIds,
+  isSignedIn = false,
+}: {
+  products: ProductCardData[];
+  savedIds?: Set<string>;
+  isSignedIn?: boolean;
+}) {
   if (products.length === 0) {
     return (
       <EmptyState
@@ -16,7 +24,12 @@ export function ProductGrid({ products }: { products: ProductCardData[] }) {
   return (
     <div className="columns-2 gap-4 sm:columns-3 lg:columns-4">
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+        <ProductCard
+          key={product.id}
+          product={product}
+          isSaved={savedIds?.has(product.id) ?? false}
+          isSignedIn={isSignedIn}
+        />
       ))}
     </div>
   );

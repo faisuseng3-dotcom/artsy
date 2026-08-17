@@ -29,7 +29,7 @@ export default async function SavedPage() {
       {products.length === 0 ? (
         <EmptyState icon={Heart} title="Nothing saved yet" description="Start exploring and save pieces you love." />
       ) : (
-        <ProductGrid products={products} />
+        <ProductGrid products={products} savedIds={new Set(products.map((p) => p.id))} isSignedIn />
       )}
     </div>
   );

@@ -23,16 +23,23 @@ export function BottomNav({ session }: { session: Session | null }) {
       <div className="mx-auto flex max-w-md items-center justify-between px-4 py-2">
         {items.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          const isSell = label === "Sell";
           return (
             <Link
               key={label}
               href={href}
               className={cn(
                 "flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px]",
-                active ? "text-accent" : "text-ink-faint"
+                isSell ? "text-accent" : active ? "text-accent" : "text-ink-faint"
               )}
             >
-              <Icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
+              {isSell ? (
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-accent text-accent-ink">
+                  <Icon className="h-5 w-5" strokeWidth={2} />
+                </span>
+              ) : (
+                <Icon className="h-5 w-5" strokeWidth={active ? 2.2 : 1.8} />
+              )}
               {label}
             </Link>
           );
