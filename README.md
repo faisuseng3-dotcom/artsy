@@ -19,6 +19,37 @@ npm run db:seed
 npm run dev
 ```
 
+## Deploying to Vercel
+
+1. **Database** — create a free Postgres project at [neon.tech](https://neon.tech)
+   (or Vercel Postgres, or Supabase) and copy its connection string
+   (`postgresql://...?sslmode=require`).
+2. **Import the repo** — on [vercel.com/new](https://vercel.com/new), import
+   `faisuseng3-dotcom/artsy` and select the
+   `claude/creator-marketplace-platform-oodxbt` branch. Framework preset
+   (Next.js) and build command are auto-detected — `npm run build` already
+   runs `prisma generate` first (see `package.json`).
+3. **Environment variables** — set these in the Vercel project's Settings →
+   Environment Variables before the first deploy:
+   - `DATABASE_URL` — the Neon/Postgres connection string from step 1
+   - `NEXTAUTH_SECRET` — any long random string (`openssl rand -base64 32`)
+   - `NEXTAUTH_URL` — your Vercel deployment URL, e.g. `https://artsy-yourname.vercel.app`
+     (add this *after* the first deploy gives you the URL, then redeploy)
+   - Optional: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+     — everything degrades gracefully without them (see
+     [What's real vs. stubbed](#whats-real-vs-stubbed))
+4. **Run migrations + seed once**, from your own machine, pointed at the
+   same `DATABASE_URL`:
+   ```bash
+   npm install
+   DATABASE_URL="<your Neon connection string>" npm run db:deploy
+   DATABASE_URL="<your Neon connection string>" npm run db:seed
+   ```
+   (`db:deploy` runs `prisma migrate deploy` — applies the committed
+   migrations without prompting, safe for a fresh database.)
+5. Redeploy once `NEXTAUTH_URL` is set. From then on, every push to this
+   branch redeploys automatically.
+
 Demo accounts (seeded, password `password123` for all):
 - `buyer@artsy.dev` — buyer
 - `erik.lindqvist@artsy.dev` — creator (7 more creators seeded, see `prisma/seed.ts`)
