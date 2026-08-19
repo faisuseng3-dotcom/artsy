@@ -1,7 +1,7 @@
 import { PrismaClient, Originality, ProductStatus, ShippingMethod } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { generate } from "../scripts/generate-placeholder-images.mjs";
-import { searchUnsplashPhoto, trackUnsplashDownload, isUnsplashConfigured } from "../src/lib/unsplash";
+import { searchUnsplashPhoto, isUnsplashConfigured } from "../src/lib/unsplash";
 
 const prisma = new PrismaClient();
 
@@ -355,7 +355,12 @@ async function resolveImage(
   if (isUnsplashConfigured()) {
     const photo = await searchUnsplashPhoto(query, orientation);
     if (photo) {
-      await trackUnsplashDownload(photo.downloadLocation);
+      // Skipped during seeding: the download-tracking ping (required by
+      // Unsplash guidelines when a photo is actually shown to end users)
+      // doubles the request cost, which burns through the free tier's
+      // 50/hour limit twice as fast. It matters for the live app, not for
+      // populating demo data — trackUnsplashDownload stays available in
+      // src/lib/unsplash.ts for wiring into the real product page later.
       return { url: photo.url, width: photo.width, height: photo.height, attribution: photo.attribution };
     }
   }
