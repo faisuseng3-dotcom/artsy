@@ -368,26 +368,46 @@ async function resolveImage(
   return { url, width: 900, height: 1125, attribution: null as string | null };
 }
 
-async function seedProductImages(productId: string, tpl: ProductTemplate, productIndex: number) {
+/**
+ * Fills in a product's images one slot at a time. A slot that already has
+ * a real (attributed) photo is left untouched — never re-fetched, never
+ * deleted — so a run that gets rate-limited partway through picks up
+ * exactly where it left off next time instead of redoing finished work.
+ */
+async function seedProductImages(
+  productId: string,
+  tpl: ProductTemplate,
+  productIndex: number,
+  existingImages: { id: string; position: number; attribution: string | null }[] = []
+) {
   const varietyQueries = CATEGORY_VARIETY_QUERIES[tpl.category] ?? [];
+  const byPosition = new Map(existingImages.map((img) => [img.position, img]));
+
   for (let i = 0; i < tpl.imageCount; i++) {
+    const existingSlot = byPosition.get(i);
+    if (existingSlot?.attribution) continue;
+    if (existingSlot && !isUnsplashConfigured()) continue;
+
     // The hero shot is matched to the exact product; supporting shots draw
     // from category-level variety so the gallery isn't five near-duplicate
     // search results for the same narrow query.
     const query = i === 0 ? tpl.imageQuery : varietyQueries[(i - 1) % varietyQueries.length] ?? tpl.imageQuery;
     const orientation = i === 0 ? "portrait" : i % 2 === 0 ? "squarish" : "landscape";
     const img = await resolveImage(query, tpl.category, `product-${productIndex}-${i}`, orientation);
-    await prisma.productImage.create({
-      data: {
-        productId,
-        url: img.url,
-        position: i,
-        kind: i === 0 ? "hero" : "gallery",
-        width: img.width,
-        height: img.height,
-        attribution: img.attribution,
-      },
-    });
+    const data = {
+      productId,
+      url: img.url,
+      position: i,
+      kind: i === 0 ? "hero" : "gallery",
+      width: img.width,
+      height: img.height,
+      attribution: img.attribution,
+    };
+    if (existingSlot) {
+      await prisma.productImage.update({ where: { id: existingSlot.id }, data });
+    } else {
+      await prisma.productImage.create({ data });
+    }
   }
 }
 
@@ -413,7 +433,10 @@ async function main() {
     const passwordHash = await bcrypt.hash("password123", 10);
     const email = `${c.slug.replace(/-/g, ".")}@artsy.dev`;
 
-    const existingCreator = await prisma.creator.findUnique({ where: { slug: c.slug }, include: { studioImages: true } });
+    const existingCreator = await prisma.creator.findUnique({
+      where: { slug: c.slug },
+      include: { studioImages: { orderBy: { createdAt: "asc" } } },
+    });
     // A generated placeholder avatar is a local /seed/*.svg path; a real one
     // is an Unsplash CDN URL. Only refetch when it's still a placeholder and
     // a key is now available — never burn API quota re-fetching a photo we
@@ -462,20 +485,27 @@ async function main() {
       create: { creatorId: creator.id, followerCount: Math.round(20 + Math.random() * 400) },
     });
 
-    const studioStillPlaceholder = !existingCreator || existingCreator.studioImages.every((img) => !img.attribution);
-    const shouldRefreshStudio = !existingCreator?.studioImages.length || (isUnsplashConfigured() && studioStillPlaceholder);
-    if (shouldRefreshStudio) {
-      await prisma.studioImage.deleteMany({ where: { creatorId: creator.id } });
-      for (let i = 0; i < c.studioQueries.length; i++) {
-        const img = await resolveImage(c.studioQueries[i], c.categories[0] ?? "sculpture", `${c.slug}-studio-${i}`, "landscape");
-        await prisma.studioImage.create({
-          data: {
-            creatorId: creator.id,
-            url: img.url,
-            caption: i === 0 ? "In the studio" : undefined,
-            attribution: img.attribution,
-          },
-        });
+    // Per-slot, not all-or-nothing: a studio image already carrying real
+    // attribution is left untouched (never re-fetched, never deleted); only
+    // missing/still-placeholder slots get a fresh attempt. That way a
+    // partial run (e.g. rate-limited after slot 2 of 3) picks up exactly
+    // where it left off next time instead of redoing already-real photos.
+    for (let i = 0; i < c.studioQueries.length; i++) {
+      const existingSlot = existingCreator?.studioImages[i];
+      if (existingSlot?.attribution) continue;
+      if (existingSlot && !isUnsplashConfigured()) continue;
+
+      const img = await resolveImage(c.studioQueries[i], c.categories[0] ?? "sculpture", `${c.slug}-studio-${i}`, "landscape");
+      const data = {
+        creatorId: creator.id,
+        url: img.url,
+        caption: i === 0 ? "In the studio" : undefined,
+        attribution: img.attribution,
+      };
+      if (existingSlot) {
+        await prisma.studioImage.update({ where: { id: existingSlot.id }, data });
+      } else {
+        await prisma.studioImage.create({ data });
       }
     }
 
@@ -500,14 +530,13 @@ async function main() {
     // yet"); a product that already has real photos is left alone too, so
     // re-running seed repeatedly never re-fetches images it already has.
     if (existing) {
-      const stillPlaceholder = existing.images.every((img) => !img.attribution);
+      const stillPlaceholder = existing.images.some((img) => !img.attribution);
       if (!isUnsplashConfigured() || !stillPlaceholder) {
         console.log(`Skipping "${tpl.title}" — ${stillPlaceholder ? "no Unsplash key configured" : "already has real photos"}.`);
         continue;
       }
-      console.log(`Replacing placeholder images for "${tpl.title}"…`);
-      await prisma.productImage.deleteMany({ where: { productId: existing.id } });
-      await seedProductImages(existing.id, tpl, productIndex);
+      console.log(`Filling in remaining placeholder images for "${tpl.title}"…`);
+      await seedProductImages(existing.id, tpl, productIndex, existing.images);
       continue;
     }
 
