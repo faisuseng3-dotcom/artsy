@@ -107,7 +107,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <h1 className="font-display text-3xl text-ink md:text-4xl">{product.title}</h1>
 
           <Link href={`/creators/${product.creator.slug}`} className="mt-2.5 inline-flex items-center gap-2 text-sm text-ink-muted hover:text-ink">
-            <CreatorAvatar name={product.creator.displayName} size="xs" />
+            <CreatorAvatar name={product.creator.displayName} imageUrl={product.creator.avatarUrl} size="xs" />
             By {product.creator.displayName}
             {location && ` · ${location}`}
           </Link>
@@ -205,7 +205,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-faint">Meet the creator</h2>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex gap-4">
-            <CreatorAvatar name={product.creator.displayName} size="lg" />
+            <CreatorAvatar name={product.creator.displayName} imageUrl={product.creator.avatarUrl} size="lg" />
             <div>
               <p className="font-display text-lg text-ink">{product.creator.displayName}</p>
               <p className="text-sm text-ink-muted">{location}</p>

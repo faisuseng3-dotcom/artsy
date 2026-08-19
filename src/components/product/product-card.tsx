@@ -15,7 +15,7 @@ export type ProductCardData = {
   publishedAt: Date | string | null;
   createdAt: Date | string;
   images: { url: string; width?: number | null; height?: number | null }[];
-  creator: { displayName: string; slug: string; studioCity: string | null; studioCountry: string | null };
+  creator: { displayName: string; slug: string; avatarUrl?: string | null; studioCity: string | null; studioCountry: string | null };
 };
 
 function isNew(product: ProductCardData) {
@@ -71,7 +71,7 @@ export function ProductCard({
       <div className="mt-2.5 space-y-1">
         <p className="truncate text-[13px] font-medium text-ink">{product.title}</p>
         <div className="flex items-center gap-1.5">
-          <CreatorAvatar name={product.creator.displayName} size="xs" />
+          <CreatorAvatar name={product.creator.displayName} imageUrl={product.creator.avatarUrl} size="xs" />
           <p className="truncate text-[12px] text-ink-muted">
             {product.creator.displayName}
             {location && <span className="text-ink-faint"> · {location}</span>}

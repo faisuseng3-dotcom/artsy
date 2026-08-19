@@ -5,6 +5,7 @@ import { CreatorAvatar } from "@/components/creator/creator-avatar";
 export type CreatorCardData = {
   slug: string;
   displayName: string;
+  avatarUrl?: string | null;
   studioCity: string | null;
   studioCountry: string | null;
   bio: string | null;
@@ -31,7 +32,7 @@ export function CreatorCard({ creator }: { creator: CreatorCardData }) {
         )}
       </div>
       <div className="mt-2 flex items-center gap-1.5">
-        <CreatorAvatar name={creator.displayName} size="xs" />
+        <CreatorAvatar name={creator.displayName} imageUrl={creator.avatarUrl} size="xs" />
         <p className="truncate text-[13px] font-medium text-ink">{creator.displayName}</p>
       </div>
       {location && <p className="truncate text-[12px] text-ink-muted">{location}</p>}

@@ -19,6 +19,33 @@ npm run db:seed
 npm run dev
 ```
 
+## Real photography (Unsplash)
+
+Seed data uses real, licensed photos from the Unsplash API — searched
+per-product (e.g. "hand thrown ceramic stoneware vase" for a ceramic vase
+listing) and per-creator (portrait + studio shots matched to their craft),
+never the same photo reused across two products. Get a free key:
+
+1. Sign up at [unsplash.com/developers](https://unsplash.com/developers) → **New Application**
+2. Copy the **Access Key**
+3. Set `UNSPLASH_ACCESS_KEY` in `.env` (local) and re-run `npm run db:seed`
+   — it's idempotent, so it only fills in images for products/creators that
+   don't have real ones yet, not create duplicates
+4. Set the same variable in Vercel's environment variables, then redeploy
+
+The free tier is capped at 50 requests/hour, which is enough for this
+seed's ~13 products + 8 creators in one run; if you hit the limit partway
+through, any remaining images fall back to generated placeholders and a
+second `npm run db:seed` run later picks up where it left off. Apply for
+[Production access](https://unsplash.com/documentation#rate-limiting)
+(free, instant self-serve form) if you'll reseed often — it raises the
+limit to 5,000/hour.
+
+Without a key, seeding still works end-to-end using locally-generated
+placeholder graphics (same fallback philosophy as the AI listing assistant
+in `src/lib/ai.ts` — an external service is an enhancement, never a
+dependency the app breaks without).
+
 ## Deploying to Vercel
 
 1. **Database** — create a free Postgres project at [neon.tech](https://neon.tech)
@@ -181,6 +208,7 @@ queries actually filter or sort by (`status`, `createdAt`, `priceCents`,
 | Admin moderation, audit log | Real |
 | Stripe checkout + webhook + payout record | Real code; inert without `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` (shows an honest "not connected" state, never a fake success) |
 | Image storage | Local disk in dev; swap point for S3 is `/api/uploads` |
+| Seed photography | Real via Unsplash API with `UNSPLASH_ACCESS_KEY`; generated placeholder graphics without it |
 | Discovery ranking | Real weighted heuristic; documented as the seam for a future learned ranker |
 | Editorial collections | Real data, hand-picked filters (cold-start solution per spec section 51 — the algorithm shouldn't have to solve discovery alone on day one) |
 

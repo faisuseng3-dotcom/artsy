@@ -4,6 +4,7 @@ import { getCreatorBySlug, getSavedProductIds } from "@/lib/queries";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { FollowButton } from "@/components/creator/follow-button";
+import { CreatorAvatar } from "@/components/creator/creator-avatar";
 import { ProductGrid } from "@/components/product/product-grid";
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, MapPin } from "lucide-react";
@@ -33,9 +34,7 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
         <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="flex gap-5">
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-ink/5 font-display text-3xl">
-                {creator.displayName[0]}
-              </div>
+              <CreatorAvatar name={creator.displayName} imageUrl={creator.avatarUrl} size="xl" />
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="font-display text-3xl text-ink">{creator.displayName}</h1>
@@ -77,8 +76,11 @@ export default async function CreatorPage({ params }: { params: Promise<{ slug: 
             <h2 className="mb-3 font-display text-xl text-ink">Studio</h2>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
               {creator.studioImages.map((img) => (
-                <div key={img.id} className="overflow-hidden rounded-xl bg-ink/5">
+                <div key={img.id} className="relative overflow-hidden rounded-xl bg-ink/5">
                   <Image src={img.url} alt={img.caption ?? ""} width={400} height={300} className="aspect-[4/3] w-full object-cover" />
+                  {img.attribution && (
+                    <p className="absolute bottom-1.5 right-2 text-[10px] text-white/70 drop-shadow">{img.attribution}</p>
+                  )}
                 </div>
               ))}
             </div>

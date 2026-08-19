@@ -8,7 +8,7 @@ export function Gallery({
   images,
   title,
 }: {
-  images: { url: string; width?: number | null; height?: number | null }[];
+  images: { url: string; width?: number | null; height?: number | null; attribution?: string | null }[];
   title: string;
 }) {
   const [active, setActive] = useState(0);
@@ -16,7 +16,7 @@ export function Gallery({
 
   return (
     <div>
-      <div className="overflow-hidden rounded-2xl bg-ink/5">
+      <div className="relative overflow-hidden rounded-2xl bg-ink/5">
         {current && (
           <Image
             src={current.url}
@@ -26,6 +26,9 @@ export function Gallery({
             priority
             className="w-full object-cover"
           />
+        )}
+        {current?.attribution && (
+          <p className="absolute bottom-2 right-3 text-[11px] text-white/70 drop-shadow">{current.attribution}</p>
         )}
       </div>
       {images.length > 1 && (

@@ -73,6 +73,7 @@ model Creator {
   user           User          @relation(fields: [userId], references: [id])
   slug           String        @unique
   displayName    String
+  avatarUrl      String? // portrait photo; denormalized from User.avatarUrl at signup/seed time so profile queries don't need an extra join
   bio            String?       @db.Text
   story          String?       @db.Text // longer "creator story" shown on profile
   studioCity     String?
@@ -97,12 +98,13 @@ model Creator {
 }
 
 model StudioImage {
-  id        String   @id @default(cuid())
-  creatorId String
-  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  url       String
-  caption   String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  creatorId   String
+  creator     Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  url         String
+  caption     String?
+  attribution String? // e.g. "Photo by Jane Doe on Unsplash", null for locally-generated/uploaded images
+  createdAt   DateTime @default(now())
 
   @@index([creatorId])
 }
@@ -227,15 +229,16 @@ model Product {
 }
 
 model ProductImage {
-  id        String   @id @default(cuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String
-  kind      String   @default("gallery") // hero | detail | scale | process | gallery
-  position  Int      @default(0)
-  width     Int?
-  height    Int?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url         String
+  kind        String   @default("gallery") // hero | detail | scale | process | gallery
+  position    Int      @default(0)
+  width       Int?
+  height      Int?
+  attribution String? // e.g. "Photo by Jane Doe on Unsplash", null for creator-uploaded images
+  createdAt   DateTime @default(now())
 
   @@index([productId])
 }

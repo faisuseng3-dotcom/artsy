@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
-        <rect width="1200" height="900" fill="#f3ece1"/>
-        <ellipse cx="600" cy="765" rx="336.00000000000006" ry="36" fill="#243024" opacity="0.25"/>
-        <path d="M 456 765 C 360 450, 540 360, 600 135 C 720 360, 816 495.00000000000006, 720 765 Z" fill="#6b7f6a"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1125" viewBox="0 0 900 1125">
+        <rect width="900" height="1125" fill="#f3ece1"/>
+        <ellipse cx="450" cy="956.25" rx="252.00000000000003" ry="45" fill="#243024" opacity="0.25"/>
+        <path d="M 342 956.25 C 270 562.5, 405 450, 450 168.75 C 540 450, 612 618.75, 540 956.25 Z" fill="#6b7f6a"/>
       </svg>
