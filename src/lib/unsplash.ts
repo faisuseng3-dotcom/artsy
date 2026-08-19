@@ -26,6 +26,14 @@ export function isUnsplashConfigured() {
 // end up with the same photo — the brief is explicit that this must not happen.
 const usedPhotoIds = new Set<string>();
 
+// Once we've been told we're rate-limited, stop calling the API entirely for
+// the rest of this run. Without this, a script iterating dozens of products
+// just keeps hammering Unsplash with request after request that's certain to
+// fail — each of which still appears to count against the hourly quota,
+// digging the hole deeper (observed: quota went to -100/50) instead of
+// leaving it to recover.
+let rateLimited = false;
+
 /**
  * Searches Unsplash for `query` and returns the first result not already
  * used this run. Falls back to reusing search results with a wider `page`
@@ -37,13 +45,18 @@ export async function searchUnsplashPhoto(
   orientation: "portrait" | "landscape" | "squarish" = "portrait"
 ): Promise<UnsplashPhoto | null> {
   const accessKey = process.env.UNSPLASH_ACCESS_KEY;
-  if (!accessKey) return null;
+  if (!accessKey || rateLimited) return null;
 
   for (let page = 1; page <= 3; page++) {
     const res = await fetch(
       `${UNSPLASH_API}/search/photos?query=${encodeURIComponent(query)}&per_page=10&page=${page}&content_filter=high&orientation=${orientation}`,
       { headers: { Authorization: `Client-ID ${accessKey}` } }
     );
+    if (res.status === 403 || res.status === 429) {
+      rateLimited = true;
+      console.warn(`Unsplash rate limit hit — stopping API calls for the rest of this run. Remaining images will use placeholders; just re-run "npm run db:seed" once the limit resets.`);
+      return null;
+    }
     if (!res.ok) {
       console.warn(`Unsplash search failed for "${query}": ${res.status} ${await res.text().catch(() => "")}`);
       return null;
